@@ -1,26 +1,26 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template
 import pickle
 
 app = Flask(__name__)
 
+# model load
 model = pickle.load(open("model.pkl", "rb"))
 
-@app.route("/")
+# HOME PAGE
+@app.route('/')
 def home():
-    return "PhishGuard API Running"
+    return render_template('index.html')
 
-@app.route("/predict", methods=["POST"])
+# PREDICT
+@app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
-    url = data.get("url")
+    url = request.form['url']
+    
+    # yaha tu apna feature extraction logic laga sakta hai
+    # abhi demo ke liye simple predict
+    prediction = model.predict([url])[0]
 
-    # simple demo (tu apna ML logic laga sakta hai)
-    if "https" in url:
-        result = "Safe"
-    else:
-        result = "Phishing"
-
-    return jsonify({"result": result})
+    return f"Result: {prediction}"
 
 if __name__ == "__main__":
     app.run()
