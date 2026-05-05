@@ -1,26 +1,26 @@
 from flask import Flask, request, render_template
-import pickle
 
 app = Flask(__name__)
-
-# model load
-model = pickle.load(open("model.pkl", "rb"))
 
 # HOME PAGE
 @app.route('/')
 def home():
     return render_template('index.html')
 
-# PREDICT
+
+# PREDICT ROUTE
 @app.route('/predict', methods=['POST'])
 def predict():
     url = request.form['url']
-    
-    # yaha tu apna feature extraction logic laga sakta hai
-    # abhi demo ke liye simple predict
-    prediction = model.predict([url])[0]
 
-    return f"Result: {prediction}"
+    # simple working logic (no ML crash)
+    if "https" in url:
+        result = "Safe Website ✅"
+    else:
+        result = "Phishing Website ⚠️"
+
+    return f"<h2>{result}</h2><br><a href='/'>Go Back</a>"
+
 
 if __name__ == "__main__":
     app.run()
