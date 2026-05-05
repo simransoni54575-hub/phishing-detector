@@ -8,28 +8,19 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    try:
-        url = request.form.get('url')
+    url = request.form.get('url')
 
-        if not url:
-            return render_template('index.html', result="No URL entered ⚠️")
+    if not url:
+        return render_template('index.html', result="No URL entered ⚠️")
 
-        # TEMP LOGIC
-        if "https" in url:
-            prediction = 0
-        else:
-            prediction = 1
+    # SIMPLE DEMO LOGIC
+    if url.startswith("https"):
+        result = "Safe Website ✅"
+    else:
+        result = "Phishing Website ❌"
 
-        if prediction == 1:
-            result = "Phishing Website ❌"
-        else:
-            result = "Safe Website ✅"
+    return render_template('index.html', result=result)
 
-        return render_template('index.html', result=result)
-
-    except Exception as e:
-        print("ERROR:", e)   # logs me dikhega
-        return render_template('index.html', result="Error occurred ⚠️")
 
 if __name__ == "__main__":
     app.run()
