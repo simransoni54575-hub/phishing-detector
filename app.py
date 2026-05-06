@@ -4,7 +4,17 @@ import re
 
 app = Flask(__name__)
 
-# 🧠 Basic phishing detection function
+# 🔍 URL validation
+def is_valid_url(url):
+    regex = re.compile(
+        r'^(https?:\/\/)?'           # http:// or https://
+        r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}'  # domain
+        r'(\/.*)?$'                  # optional path
+    )
+    return re.match(regex, url)
+
+
+# 🧠 Phishing detection logic
 def check_url(url):
     score = 0
 
@@ -16,7 +26,7 @@ def check_url(url):
     if "@" in url or "//" in url[8:]:
         score += 1
 
-    # 3. URL length check
+    # 3. Long URL
     if len(url) > 75:
         score += 1
 
@@ -25,7 +35,7 @@ def check_url(url):
     if "-" in domain:
         score += 1
 
-    # 5. IP address instead of domain
+    # 5. IP address check
     ip_pattern = r"(http[s]?://)?(\d{1,3}\.){3}\d{1,3}"
     if re.match(ip_pattern, url):
         score += 1
@@ -41,15 +51,23 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
-        url = request.form['url']
+        user_input = request.form['url'].strip()
 
-        # 🔧 fix: agar http/https nahi hai toh add kar do
-        if not url.startswith("http"):
-            url = "http://" + url
+        # ❌ Empty input
+        if not user_input:
+            return render_template('index.html', result="Please enter a URL ⚠️")
 
-        score = check_url(url)
+        # 🔧 Add http if missing
+        if not user_input.startswith("http"):
+            user_input = "http://" + user_input
 
-        # 🎯 final decision
+        # ❌ Invalid URL format
+        if not is_valid_url(user_input):
+            return render_template('index.html', result="Invalid URL ❌")
+
+        # 🧠 Check phishing
+        score = check_url(user_input)
+
         if score >= 2:
             result = "Phishing Website ❌"
         else:
@@ -58,7 +76,7 @@ def predict():
         return render_template('index.html', result=result)
 
     except Exception as e:
-        return render_template('index.html', result="Error occurred ⚠️")
+        return render_template('index.html', result="Something went wrong ⚠️")
 
 
 if __name__ == '__main__':
