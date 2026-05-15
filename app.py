@@ -1,70 +1,53 @@
 from flask import Flask, render_template, request
 from urllib.parse import urlparse
+import difflib
 import re
 
 app = Flask(__name__)
 
-# Trusted Websites
+# Trusted websites
 trusted_domains = [
     "google.com",
     "youtube.com",
     "github.com",
-    "microsoft.com",
-    "apple.com",
-    "amazon.com",
     "facebook.com",
     "instagram.com",
+    "amazon.com",
+    "microsoft.com",
+    "apple.com",
     "linkedin.com",
     "openai.com",
     "netflix.com",
-    "whatsapp.com",
-    "wikipedia.org"
+    "paypal.com"
 ]
 
-# Suspicious Keywords
+# Suspicious keywords
 suspicious_keywords = [
     "login",
     "verify",
     "secure",
-    "update",
     "bank",
+    "bonus",
     "free",
     "gift",
-    "bonus",
-    "crypto",
     "claim",
-    "winner",
-    "password",
     "wallet",
-    "paypal",
-    "account",
+    "crypto",
     "signin",
-    "otp"
+    "account",
+    "update",
+    "password"
 ]
 
-# Dangerous Extensions
+# Dangerous domain extensions
 dangerous_extensions = [
     ".tk",
     ".xyz",
     ".ru",
     ".top",
-    ".gq",
     ".cf",
+    ".gq",
     ".ml"
-]
-
-# Fake famous brands
-fake_brands = [
-    "g00gle",
-    "gooogle",
-    "paypa1",
-    "faceb00k",
-    "instagrarn",
-    "micr0soft",
-    "amaz0n",
-    "y0utube",
-    "gmai1",
-    "0penai"
 ]
 
 
@@ -76,105 +59,142 @@ def home():
 @app.route('/predict', methods=['POST'])
 def predict():
 
-    url = request.form['url'].strip().lower()
+    try:
+        url = request.form['url'].strip().lower()
 
-    # Auto add https
-    if not url.startswith("http://") and not url.startswith("https://"):
-        url = "https://" + url
+        # Auto add https
+        if not url.startswith("http://") and not url.startswith("https://"):
+            url = "https://" + url
 
-    parsed = urlparse(url)
-    domain = parsed.netloc
+        parsed = urlparse(url)
 
-    # Remove www.
-    if domain.startswith("www."):
-        domain = domain.replace("www.", "")
+        domain = parsed.netloc.replace("www.", "")
 
-    # URL validation regex
-    regex = re.compile(
-        r'^(https?:\/\/)'
-        r'(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})'
-        r'(\/.*)?$'
-    )
+        score = 0
 
-    phishing_score = 0
+        # =========================
+        # INVALID URL CHECK
+        # =========================
+        regex = re.compile(
+            r'^(https?:\/\/)'
+            r'(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})'
+        )
 
-    # INVALID URL
-    if not regex.match(url):
+        if not regex.match(url):
 
-        result = "Invalid URL ⚠️"
-        color = "orange"
+            return render_template(
+                'index.html',
+                result="Invalid URL ⚠️",
+                color="orange"
+            )
 
-    # FAKE BRAND PHISHING
-    elif any(fake in domain for fake in fake_brands):
+        # =========================
+        # LOCAL DOMAIN CHECK
+        # =========================
+        if ".local" in domain:
 
-        result = "Fake Brand Phishing ❌"
-        color = "red"
+            return render_template(
+                'index.html',
+                result="Fake Local Website ❌",
+                color="red"
+            )
 
-    # BLOCK .LOCAL DOMAINS
-    elif domain.endswith(".local"):
+        # =========================
+        # EXACT TRUSTED DOMAIN
+        # =========================
+        if domain in trusted_domains:
 
-        result = "Fake Local Domain ❌"
-        color = "red"
+            return render_template(
+                'index.html',
+                result="Safe Website ✅",
+                color="green"
+            )
 
-    # SAFE TRUSTED DOMAINS
-    elif domain in trusted_domains:
+        # =========================
+        # TYPO / CLONE DETECTION
+        # =========================
+        for trusted in trusted_domains:
 
-        result = "Safe Website ✅"
-        color = "green"
+            similarity = difflib.SequenceMatcher(
+                None,
+                domain,
+                trusted
+            ).ratio()
 
-    else:
+            # Detect:
+            # googlle.com
+            # g00gle.com
+            # gooogle.com
 
-        # Long URL
-        if len(url) > 75:
-            phishing_score += 1
+            if similarity > 0.80:
 
-        # Too many hyphens
-        if url.count("-") >= 2:
-            phishing_score += 2
+                return render_template(
+                    'index.html',
+                    result="Fake Copy Website ❌",
+                    color="red"
+                )
 
-        # @ symbol
-        if "@" in url:
-            phishing_score += 3
-
-        # IP address check
-        ip_pattern = re.compile(r'(\d{1,3}\.){3}\d{1,3}')
-        if ip_pattern.search(url):
-            phishing_score += 3
-
-        # Dangerous domain extensions
-        for ext in dangerous_extensions:
-            if domain.endswith(ext):
-                phishing_score += 3
-
-        # Suspicious keywords
-        for word in suspicious_keywords:
-            if word in url:
-                phishing_score += 1
-
-        # Too many dots
-        if url.count(".") > 3:
-            phishing_score += 1
-
-        # HTTP only
+        # =========================
+        # HTTP ONLY
+        # =========================
         if url.startswith("http://"):
-            phishing_score += 1
+            score += 2
 
-        # Numbers in domain
+        # =========================
+        # NUMBERS IN DOMAIN
+        # =========================
         if re.search(r'\d', domain):
-            phishing_score += 1
+            score += 2
 
-        # Random weird domains
-        weird_pattern = re.compile(r'[a-z0-9]{20,}')
-        if weird_pattern.search(domain):
-            phishing_score += 2
+        # =========================
+        # TOO MANY DASHES
+        # =========================
+        if domain.count("-") >= 2:
+            score += 2
 
+        # =========================
+        # TOO MANY DOTS
+        # =========================
+        if domain.count(".") > 3:
+            score += 1
+
+        # =========================
+        # @ SYMBOL
+        # =========================
+        if "@" in url:
+            score += 3
+
+        # =========================
+        # LONG URL
+        # =========================
+        if len(url) > 80:
+            score += 1
+
+        # =========================
+        # SUSPICIOUS WORDS
+        # =========================
+        for word in suspicious_keywords:
+
+            if word in url:
+                score += 1
+
+        # =========================
+        # DANGEROUS EXTENSIONS
+        # =========================
+        for ext in dangerous_extensions:
+
+            if domain.endswith(ext):
+                score += 3
+
+        # =========================
         # FINAL RESULT
-        if phishing_score >= 5:
+        # =========================
+        if score >= 5:
 
             result = "Phishing Website ❌"
             color = "red"
 
-        elif phishing_score >= 3:
+        elif score >= 3:
 
             result = "Suspicious Website ⚠️"
             color = "orange"
@@ -184,11 +204,19 @@ def predict():
             result = "Safe Website ✅"
             color = "green"
 
-    return render_template(
-        'index.html',
-        result=result,
-        color=color
-    )
+        return render_template(
+            'index.html',
+            result=result,
+            color=color
+        )
+
+    except Exception as e:
+
+        return render_template(
+            'index.html',
+            result="Server Error ⚠️",
+            color="red"
+        )
 
 
 if __name__ == "__main__":
