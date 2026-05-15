@@ -1,46 +1,45 @@
 from flask import Flask, render_template, request
-from urllib.parse import urlparse
 import re
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 
-# 🔍 URL validation
-def is_valid_url(url):
-    regex = re.compile(
-        r'^(https?:\/\/)?'           # http:// or https://
-        r'([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}'  # domain
-        r'(\/.*)?$'                  # optional path
-    )
-    return re.match(regex, url)
+# Trusted domains list
+trusted_domains = [
+    "google.com",
+    "youtube.com",
+    "github.com",
+    "microsoft.com",
+    "apple.com",
+    "amazon.com",
+    "facebook.com",
+    "instagram.com",
+    "linkedin.com",
+    "openai.com",
+    "wikipedia.org",
+    "netflix.com",
+    "whatsapp.com"
+]
 
-
-# 🧠 Phishing detection logic
-def check_url(url):
-    score = 0
-
-    # 1. HTTPS check
-    if not url.startswith("https"):
-        score += 1
-
-    # 2. Suspicious symbols
-    if "@" in url or "//" in url[8:]:
-        score += 1
-
-    # 3. Long URL
-    if len(url) > 75:
-        score += 1
-
-    # 4. Hyphen in domain
-    domain = urlparse(url).netloc
-    if "-" in domain:
-        score += 1
-
-    # 5. IP address check
-    ip_pattern = r"(http[s]?://)?(\d{1,3}\.){3}\d{1,3}"
-    if re.match(ip_pattern, url):
-        score += 1
-
-    return score
+# Suspicious keywords
+suspicious_keywords = [
+    "login",
+    "verify",
+    "secure",
+    "update",
+    "bank",
+    "free",
+    "gift",
+    "bonus",
+    "crypto",
+    "win",
+    "claim",
+    "password",
+    "wallet",
+    "paypal",
+    "account",
+    "signin"
+]
 
 
 @app.route('/')
@@ -50,34 +49,103 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    try:
-        user_input = request.form['url'].strip()
 
-        # ❌ Empty input
-        if not user_input:
-            return render_template('index.html', result="Please enter a URL ⚠️")
+    url = request.form['url'].strip().lower()
 
-        # 🔧 Add http if missing
-        if not user_input.startswith("http"):
-            user_input = "http://" + user_input
+    # Add https automatically if missing
+    if not url.startswith("http://") and not url.startswith("https://"):
+        url = "https://" + url
 
-        # ❌ Invalid URL format
-        if not is_valid_url(user_input):
-            return render_template('index.html', result="Invalid URL ❌")
+    parsed_url = urlparse(url)
+    domain = parsed_url.netloc
 
-        # 🧠 Check phishing
-        score = check_url(user_input)
+    # Remove www.
+    if domain.startswith("www."):
+        domain = domain.replace("www.", "")
 
-        if score >= 2:
+    # URL validation
+    regex = re.compile(
+        r'^(https?:\/\/)'
+        r'(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})'
+        r'(\/.*)?$'
+    )
+
+    # INVALID URL
+    if not regex.match(url):
+
+        result = "Invalid URL ⚠️"
+        color = "orange"
+
+    # TRUSTED WEBSITE
+    elif domain in trusted_domains:
+
+        result = "Safe Website ✅"
+        color = "green"
+
+    else:
+
+        phishing_score = 0
+
+        # Long URL
+        if len(url) > 75:
+            phishing_score += 1
+
+        # @ symbol
+        if "@" in url:
+            phishing_score += 2
+
+        # Too many hyphens
+        if url.count("-") >= 2:
+            phishing_score += 1
+
+        # IP address check
+        ip_pattern = re.compile(r'(\d{1,3}\.){3}\d{1,3}')
+        if ip_pattern.search(url):
+            phishing_score += 2
+
+        # Suspicious words
+        for word in suspicious_keywords:
+            if word in url:
+                phishing_score += 1
+
+        # Fake domains
+        fake_domains = [
+            ".tk",
+            ".xyz",
+            ".ru",
+            ".top",
+            ".gq",
+            ".ml",
+            ".cf"
+        ]
+
+        for fd in fake_domains:
+            if domain.endswith(fd):
+                phishing_score += 2
+
+        # HTTPS missing
+        if not url.startswith("https://"):
+            phishing_score += 1
+
+        # Final Decision
+        if phishing_score >= 3:
             result = "Phishing Website ❌"
+            color = "red"
+
+        elif phishing_score == 2:
+            result = "Suspicious Website ⚠️"
+            color = "orange"
+
         else:
             result = "Safe Website ✅"
+            color = "green"
 
-        return render_template('index.html', result=result)
+    return render_template(
+        'index.html',
+        result=result,
+        color=color
+    )
 
-    except Exception as e:
-        return render_template('index.html', result="Something went wrong ⚠️")
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=True)
