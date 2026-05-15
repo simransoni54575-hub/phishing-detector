@@ -53,6 +53,20 @@ dangerous_extensions = [
     ".ml"
 ]
 
+# Fake famous brands
+fake_brands = [
+    "g00gle",
+    "gooogle",
+    "paypa1",
+    "faceb00k",
+    "instagrarn",
+    "micr0soft",
+    "amaz0n",
+    "y0utube",
+    "gmai1",
+    "0penai"
+]
+
 
 @app.route('/')
 def home():
@@ -71,11 +85,11 @@ def predict():
     parsed = urlparse(url)
     domain = parsed.netloc
 
-    # Remove www
+    # Remove www.
     if domain.startswith("www."):
         domain = domain.replace("www.", "")
 
-    # URL regex validation
+    # URL validation regex
     regex = re.compile(
         r'^(https?:\/\/)'
         r'(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})'
@@ -90,7 +104,13 @@ def predict():
         result = "Invalid URL ⚠️"
         color = "orange"
 
-    # BLOCK LOCAL / FAKE DOMAINS
+    # FAKE BRAND PHISHING
+    elif any(fake in domain for fake in fake_brands):
+
+        result = "Fake Brand Phishing ❌"
+        color = "red"
+
+    # BLOCK .LOCAL DOMAINS
     elif domain.endswith(".local"):
 
         result = "Fake Local Domain ❌"
@@ -116,12 +136,12 @@ def predict():
         if "@" in url:
             phishing_score += 3
 
-        # IP address URL
+        # IP address check
         ip_pattern = re.compile(r'(\d{1,3}\.){3}\d{1,3}')
         if ip_pattern.search(url):
             phishing_score += 3
 
-        # Dangerous extensions
+        # Dangerous domain extensions
         for ext in dangerous_extensions:
             if domain.endswith(ext):
                 phishing_score += 3
