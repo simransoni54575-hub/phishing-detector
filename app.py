@@ -5,41 +5,61 @@ import re
 
 app = Flask(__name__)
 
-# Trusted websites
+# =========================
+# TRUSTED DOMAINS
+# =========================
 trusted_domains = [
     "google.com",
     "youtube.com",
-    "github.com",
     "facebook.com",
     "instagram.com",
+    "github.com",
     "amazon.com",
     "microsoft.com",
     "apple.com",
     "linkedin.com",
-    "openai.com",
+    "paypal.com",
     "netflix.com",
-    "paypal.com"
+    "openai.com",
+    "chatgpt.com",
+    "whatsapp.com"
 ]
 
-# Suspicious keywords
+# =========================
+# SHORTENERS
+# =========================
+shorteners = [
+    "bit.ly",
+    "tinyurl.com",
+    "goo.gl",
+    "t.co",
+    "rb.gy"
+]
+
+# =========================
+# SUSPICIOUS WORDS
+# =========================
 suspicious_keywords = [
     "login",
     "verify",
     "secure",
     "bank",
     "bonus",
-    "free",
     "gift",
     "claim",
-    "wallet",
+    "free",
     "crypto",
+    "wallet",
     "signin",
     "account",
+    "password",
     "update",
-    "password"
+    "support"
 ]
 
-# Dangerous domain extensions
+# =========================
+# DANGEROUS EXTENSIONS
+# =========================
 dangerous_extensions = [
     ".tk",
     ".xyz",
@@ -60,9 +80,10 @@ def home():
 def predict():
 
     try:
+
         url = request.form['url'].strip().lower()
 
-        # Auto add https
+        # Auto add HTTPS
         if not url.startswith("http://") and not url.startswith("https://"):
             url = "https://" + url
 
@@ -73,10 +94,10 @@ def predict():
         score = 0
 
         # =========================
-        # INVALID URL CHECK
+        # INVALID URL
         # =========================
         regex = re.compile(
-            r'^(https?:\/\/)'
+            r'^(https?:\/\/)?'
             r'(([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})'
         )
 
@@ -89,7 +110,7 @@ def predict():
             )
 
         # =========================
-        # LOCAL DOMAIN CHECK
+        # LOCAL DOMAIN
         # =========================
         if ".local" in domain:
 
@@ -100,7 +121,18 @@ def predict():
             )
 
         # =========================
-        # EXACT TRUSTED DOMAIN
+        # IP ADDRESS URL
+        # =========================
+        if re.match(r'^\d+\.\d+\.\d+\.\d+$', domain):
+
+            return render_template(
+                'index.html',
+                result="Phishing IP URL ❌",
+                color="red"
+            )
+
+        # =========================
+        # TRUSTED DOMAIN
         # =========================
         if domain in trusted_domains:
 
@@ -111,7 +143,7 @@ def predict():
             )
 
         # =========================
-        # TYPO / CLONE DETECTION
+        # TYPO DOMAIN DETECTION
         # =========================
         for trusted in trusted_domains:
 
@@ -121,18 +153,22 @@ def predict():
                 trusted
             ).ratio()
 
-            # Detect:
-            # googlle.com
-            # g00gle.com
-            # gooogle.com
-
-            if similarity > 0.80:
+            # Detect fake copies
+            if similarity > 0.75:
 
                 return render_template(
                     'index.html',
                     result="Fake Copy Website ❌",
                     color="red"
                 )
+
+        # =========================
+        # SHORTENER DETECTION
+        # =========================
+        for short in shorteners:
+
+            if short in domain:
+                score += 3
 
         # =========================
         # HTTP ONLY
@@ -147,16 +183,16 @@ def predict():
             score += 2
 
         # =========================
-        # TOO MANY DASHES
+        # MANY HYPHENS
         # =========================
         if domain.count("-") >= 2:
             score += 2
 
         # =========================
-        # TOO MANY DOTS
+        # MANY DOTS
         # =========================
         if domain.count(".") > 3:
-            score += 1
+            score += 2
 
         # =========================
         # @ SYMBOL
@@ -167,8 +203,8 @@ def predict():
         # =========================
         # LONG URL
         # =========================
-        if len(url) > 80:
-            score += 1
+        if len(url) > 100:
+            score += 2
 
         # =========================
         # SUSPICIOUS WORDS
@@ -187,9 +223,15 @@ def predict():
                 score += 3
 
         # =========================
+        # RANDOM CHARACTERS
+        # =========================
+        if re.search(r'[0-9]{3,}', domain):
+            score += 2
+
+        # =========================
         # FINAL RESULT
         # =========================
-        if score >= 5:
+        if score >= 6:
 
             result = "Phishing Website ❌"
             color = "red"
